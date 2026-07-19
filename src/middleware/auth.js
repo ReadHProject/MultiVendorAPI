@@ -18,9 +18,14 @@ function getRefreshFromRequest(req) {
 }
 
 async function authenticate(req, res, next) {
+  console.log(`[AUTH DEBUG] Method: ${req.method} URL: ${req.originalUrl}`);
+  console.log(`[AUTH DEBUG] Headers:`, JSON.stringify(req.headers));
+  console.log(`[AUTH DEBUG] Cookies:`, JSON.stringify(req.cookies));
+
   try {
     let payload = null;
     const accessToken = getTokenFromRequest(req);
+    console.log(`[AUTH DEBUG] Extracted Access Token: ${accessToken ? 'Yes' : 'No'}`);
 
     if (accessToken) {
       try {
@@ -54,6 +59,7 @@ async function authenticate(req, res, next) {
     }
 
     if (!payload) {
+      console.error(`[AUTH DEBUG] Payload is null after verifying both tokens. AccessToken: ${accessToken ? 'present' : 'missing'}. RefreshToken: ${req.cookies?.[REFRESH_COOKIE] ? 'present' : 'missing'}`);
       throw new UnauthorizedError("Authentication required");
     }
 
@@ -85,11 +91,13 @@ async function authenticate(req, res, next) {
     next();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
+      console.error(`[AUTH DEBUG] UnauthorizedError:`, error.message);
       return res.status(401).json({
         success: false,
         error: { code: "UNAUTHORIZED", message: error.message },
       });
     }
+    console.error(`[AUTH DEBUG] Unexpected Error:`, error);
     return res.status(401).json({
       success: false,
       error: { code: "UNAUTHORIZED", message: "Authentication required" },
