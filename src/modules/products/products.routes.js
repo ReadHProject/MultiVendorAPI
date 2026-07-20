@@ -136,7 +136,13 @@ router.post("/", authenticate, requirePermission("product.create"), validate(pro
 
     const allRoles = await prisma.role.findMany();
     const roleMap = {};
-    for (const r of allRoles) roleMap[r.name] = r.id;
+    for (const r of allRoles) roleMap[r.name.toUpperCase()] = r.id;
+    
+    // Auto-create GENERAL if it doesn't exist in this database
+    if (!roleMap["GENERAL"]) {
+      const g = await prisma.role.create({ data: { name: "GENERAL", description: "General role", isSystem: true } });
+      roleMap["GENERAL"] = g.id;
+    }
 
     const product = await prisma.$transaction(async (tx) => {
       const p = await tx.product.create({
@@ -189,10 +195,10 @@ router.post("/", authenticate, requirePermission("product.create"), validate(pro
 
       if (body.rolePrices?.length) {
         const rpData = body.rolePrices
-          .filter((rp) => roleMap[rp.role])
+          .filter((rp) => roleMap[rp.role.toUpperCase()])
           .map((rp) => ({
             productId: p.id,
-            roleId: roleMap[rp.role],
+            roleId: roleMap[rp.role.toUpperCase()],
             price: rp.price,
             mrp: rp.mrp,
             discountPercent: rp.discountPercent || 0,
@@ -232,7 +238,13 @@ router.put("/:id", authenticate, requirePermission("product.update"), validate(p
 
     const allRoles = await prisma.role.findMany();
     const roleMap = {};
-    for (const r of allRoles) roleMap[r.name] = r.id;
+    for (const r of allRoles) roleMap[r.name.toUpperCase()] = r.id;
+    
+    // Auto-create GENERAL if it doesn't exist in this database
+    if (!roleMap["GENERAL"]) {
+      const g = await prisma.role.create({ data: { name: "GENERAL", description: "General role", isSystem: true } });
+      roleMap["GENERAL"] = g.id;
+    }
 
     const product = await prisma.$transaction(async (tx) => {
       const updated = await tx.product.update({ where: { id: req.params.id }, data });
@@ -249,12 +261,13 @@ router.put("/:id", authenticate, requirePermission("product.update"), validate(p
       }
 
       if (rolePrices) {
+        console.log("RECEIVED ROLE PRICES:", JSON.stringify(rolePrices, null, 2));
         await tx.rolePrice.deleteMany({ where: { productId: req.params.id } });
         const rpData = rolePrices
-          .filter((rp) => roleMap[rp.role])
+          .filter((rp) => roleMap[rp.role.toUpperCase()])
           .map((rp) => ({
             productId: req.params.id,
-            roleId: roleMap[rp.role],
+            roleId: roleMap[rp.role.toUpperCase()],
             price: rp.price,
             mrp: rp.mrp,
             discountPercent: rp.discountPercent || 0,
@@ -262,6 +275,7 @@ router.put("/:id", authenticate, requirePermission("product.update"), validate(p
             commissionPercent: rp.commissionPercent || 0,
             visible: rp.visible !== false,
           }));
+        console.log("RPDATA TO INSERT:", rpData);
         if (rpData.length) await tx.rolePrice.createMany({ data: rpData });
       }
 
