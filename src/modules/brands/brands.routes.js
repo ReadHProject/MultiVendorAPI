@@ -16,6 +16,7 @@ const brandSchema = z.object({
   description: z.string().optional(),
   defaultDiscount: z.number().min(0).max(100).optional(),
   status: z.boolean().optional(),
+  applyToProducts: z.boolean().optional(),
 });
 
 router.get("/", async (req, res, next) => {
@@ -48,9 +49,22 @@ router.put("/:id", authenticate, requirePermission("brand.update"), validate(bra
   try {
     const existing = await prisma.brand.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError("Brand");
-    const data = { ...req.body };
+    const { applyToProducts, ...data } = req.body;
     if (data.name && !data.slug) data.slug = makeSlug(data.name);
-    const brand = await prisma.brand.update({ where: { id: req.params.id }, data });
+    
+    const brand = await prisma.$transaction(async (tx) => {
+      const updated = await tx.brand.update({ where: { id: req.params.id }, data });
+      
+      if (applyToProducts && data.defaultDiscount !== undefined) {
+        await tx.product.updateMany({
+          where: { brandId: req.params.id },
+          data: { discountPercent: data.defaultDiscount }
+        });
+      }
+      
+      return updated;
+    });
+
     await audit({ userId: req.user.id, action: "update", entityType: "brand", entityId: brand.id, newValue: data });
     res.json({ success: true, data: brand });
   } catch (error) { next(error); }
