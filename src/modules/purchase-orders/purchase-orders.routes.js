@@ -128,7 +128,7 @@ router.get("/", authenticate, requirePermission("purchase.order.read"), async (r
     const [items, total] = await Promise.all([
       prisma.purchaseOrder.findMany({
         where,
-        include: { supplier: true, warehouse: true, createdBy: { select: { name: true } }, items: true },
+        include: { supplier: true, warehouse: true, createdBy: { select: { name: true } }, items: { include: { product: true } } },
         orderBy: { createdAt: "desc" },
         skip,
         take: pageSize,
