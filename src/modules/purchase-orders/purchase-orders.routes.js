@@ -116,12 +116,22 @@ router.get("/", authenticate, requirePermission("purchase.order.read"), async (r
   try {
     const { page, pageSize, skip } = paginate(req.query.page, req.query.pageSize);
     const status = req.query.status || "";
-    const supplierId = req.query.supplierId || "";
+    const supplierId = req.query.supplier || req.query.supplierId || "";
+    const invoiceNo = req.query.invoiceNo || "";
+    const dateFrom = req.query.dateFrom || "";
+    const dateTo = req.query.dateTo || "";
 
     const where = {
       AND: [
         status ? { status } : {},
         supplierId ? { supplierId } : {},
+        invoiceNo ? { supplierInvoiceNumber: { contains: invoiceNo, mode: 'insensitive' } } : {},
+        dateFrom || dateTo ? {
+          supplierInvoiceDate: {
+            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+            ...(dateTo ? { lte: new Date(dateTo) } : {})
+          }
+        } : {}
       ],
     };
 
