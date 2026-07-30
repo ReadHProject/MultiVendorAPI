@@ -22,7 +22,21 @@ router.post("/", authenticate, requireAnyRole("SUPER_ADMIN", "ADMIN"), validate(
 
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
-      include: { roles: { include: { role: true } } },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     if (!targetUser) throw new NotFoundError("Target user");
     if (targetUser.status !== "ACTIVE") throw new BadRequestError("Target user is not active");
@@ -42,11 +56,20 @@ router.post("/", authenticate, requireAnyRole("SUPER_ADMIN", "ADMIN"), validate(
       },
     });
 
+    const roles = (targetUser.roles || []).map((ur) => ur.role?.name).filter(Boolean);
+    const permissions = Array.from(
+      new Set(
+        (targetUser.roles || []).flatMap((ur) =>
+          (ur.role?.permissions || []).map((rp) => rp.permission?.code).filter(Boolean)
+        )
+      )
+    );
+
     const impersonationToken = await signAccessToken({
       sub: targetUser.id,
       email: targetUser.email,
-      roles: targetUser.roles.map((ur) => ur.role.name),
-      permissions: targetUser.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code)),
+      roles,
+      permissions: permissions.includes("*") ? ["*"] : permissions,
     });
 
     await audit({ userId: req.user.id, action: "login_as", entityType: "login_as", entityId: loginAs.id, newValue: { targetUserId, reason } });
