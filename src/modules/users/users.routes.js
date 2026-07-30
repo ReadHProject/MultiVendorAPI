@@ -120,9 +120,19 @@ router.put("/:id", authenticate, requirePermission("user.update"), validate(user
     const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError("User");
 
+    const { role, ...updateData } = req.body;
+
+    if (role) {
+      const roleRecord = await prisma.role.findUnique({ where: { name: role } });
+      if (!roleRecord) throw new BadRequestError(`Role '${role}' not found`);
+
+      await prisma.userRole.deleteMany({ where: { userId: req.params.id } });
+      await prisma.userRole.create({ data: { userId: req.params.id, roleId: roleRecord.id } });
+    }
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: req.body,
+      data: updateData,
       include: { roles: { include: { role: true } } },
     });
 
